@@ -257,6 +257,8 @@ namespace Amicitia.ModelViewer
             GL.CullFace(CullFaceMode.Back);
             GL.Enable(EnableCap.CullFace);
             GL.Enable(EnableCap.DepthTest);
+            GL.Enable(EnableCap.Blend);
+            GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
 
             mViewerCtrl.Paint += ModelViewerPaint;
             mViewerCtrl.Resize += ModelViewerResize;
