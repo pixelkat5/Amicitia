@@ -1,7 +1,10 @@
-# Amicitia
-Editor for file formats used in Atlus' Persona games
+# P3D Amicitia
+Editor for file formats used in Atlus' Persona games. 
+Modified by member(s) of the P3D team in hopes of an easier workflow.
 
-# Solution structure
+# Goals and how we differ
+A member of the team found multiple large scale bugs with Amicitia. Those being a texture/uv related bug where certain objects wouldn't be assigned proper textures on export and one where location data was stripped from the models on export.
+We aim at not only fixing issues like these, but to expand the current features of Amicitia.
 
 ## Amicitia
 This is the gui front-end of AtlusLibSharp. It aims to provide an easy to access way to edit or create content supported by the library.
