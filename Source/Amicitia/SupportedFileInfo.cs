@@ -110,5 +110,8 @@ namespace Amicitia
         Spr6Panel,
 
         MessageScript,
+        SfdFile,
+        UsmFile,
+        Mp4File,
     }
 }

@@ -115,6 +115,7 @@
     <Compile Include="ResourceWrappers\ResourceWrapper.cs" />
     <Compile Include="ResourceWrappers\RMDSceneWrapper.cs" />
     <Compile Include="ResourceWrappers\PropertySorter.cs" />
+    <Compile Include="ResourceWrappers\VideoFileWrapper.cs" />
     <Compile Include="ResourceWrappers\RWWorldWrapper.cs" />
     <Compile Include="ResourceWrappers\SpdFileWrapper.cs" />
     <Compile Include="ResourceWrappers\Spr6FileWrapper.cs" />

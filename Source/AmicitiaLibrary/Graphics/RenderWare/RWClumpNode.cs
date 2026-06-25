@@ -263,11 +263,7 @@ namespace AmicitiaLibrary.Graphics.RenderWare
                     }
                     else
                     {
-                        // Non-skinned: no bones at all, just bake world transform into vertices directly
-                        // so Blender doesn't need to interpret node transforms or bone offset matrices.
-                        // RenderWare stores matrices row-major (right/up/at as rows, translation in row 4).
-                        // System.Numerics Vector3.Transform uses v*M convention so we use the matrix as-is
-                        // with the original Transform*Parent multiplication order in WorldTransform.
+
                         var worldTransform = frame.WorldTransform;
                         Matrix4x4.Invert( worldTransform, out Matrix4x4 invTranspose );
                         invTranspose = Matrix4x4.Transpose( invTranspose );

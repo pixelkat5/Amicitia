@@ -90,6 +90,9 @@ namespace Amicitia
             new SupportedFileInfo("Field Hit Placement",              SupportedFileType.HbnFile,                  typeof(HbnFile),                 null,                 (s, o, f) => new HbnFile(s, o),                      o => ((BinaryBase)o).GetMemoryStream(),               ".hbn"),
 
             new SupportedFileInfo("Atlus Message Script",             SupportedFileType.MessageScript,            typeof(BinaryFile),              null,                 (s, o, f) => new BinaryFile(s, o),                  o => ((BinaryBase)o).GetMemoryStream(),                ".bmd"),
+            new SupportedFileInfo("CRI Sofdec Video",                  SupportedFileType.SfdFile,                  typeof(BinaryFile),              null,                 (s, o, f) => new BinaryFile(s, o),                  o => ((BinaryBase)o).GetMemoryStream(),                ".sfd"),
+            new SupportedFileInfo("CRI USM Video",                     SupportedFileType.UsmFile,                  typeof(BinaryFile),              null,                 (s, o, f) => new BinaryFile(s, o),                  o => ((BinaryBase)o).GetMemoryStream(),                ".usm"),
+            new SupportedFileInfo("MP4 Video",                         SupportedFileType.Mp4File,                  typeof(BinaryFile),              null,                 (s, o, f) => new BinaryFile(s, o),                  o => ((BinaryBase)o).GetMemoryStream(),                ".mp4", ".mkv", ".avi"),
         };
 
         public static string FileFilter { get; }

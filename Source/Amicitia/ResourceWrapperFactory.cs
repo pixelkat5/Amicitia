@@ -42,6 +42,12 @@ namespace Amicitia
             var supportedFileInfo = SupportedFileManager.GetSupportedFileInfo(supportedFileIndex);      
             var resource = supportedFileInfo.Instantiator( stream, false, filePath);
 
+            if ( supportedFileInfo.EnumType == SupportedFileType.SfdFile ||
+                 supportedFileInfo.EnumType == SupportedFileType.UsmFile )
+            {
+                return new VideoFileWrapper( text, (AmicitiaLibrary.IO.BinaryFile)resource );
+            }
+
             return GetResourceWrapper(text, resource);
         }
 
