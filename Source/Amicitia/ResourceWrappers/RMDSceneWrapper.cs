@@ -197,10 +197,10 @@ namespace Amicitia.ResourceWrappers
             RegisterFileExportAction(SupportedFileType.RwTextureDictionaryNode, (res, path) => res.Save(path));
             RegisterCustomAction( "Export All", Keys.None, ( o, s ) =>
             {
-                using ( FolderBrowserDialog dialog = new FolderBrowserDialog() )
+                using ( var dialog = new Ookii.Dialogs.WinForms.VistaFolderBrowserDialog() )
                 {
-                    dialog.ShowNewFolderButton = true;
                     dialog.Description = "Select a folder to export textures into";
+                    dialog.UseDescriptionForTitle = true;
 
                     if ( dialog.ShowDialog() != DialogResult.OK )
                     {
@@ -356,15 +356,15 @@ namespace Amicitia.ResourceWrappers
         {
             RegisterCustomAction( "Export All", Keys.None, ( o, s ) =>
             {
-                using ( FolderBrowserDialog dialog = new FolderBrowserDialog() )
+                using ( var dialog = new Ookii.Dialogs.WinForms.VistaFolderBrowserDialog() )
                 {
-                    dialog.ShowNewFolderButton = true;
                     dialog.Description = "Select a folder to export clumps into";
+                    dialog.UseDescriptionForTitle = true;
 
                     if ( dialog.ShowDialog() != DialogResult.OK )
                     {
                         return;
-                    }   
+                    }
 
                     foreach ( RwClumpNodeWrapper clumpNode in Nodes )
                     {
