@@ -1,0 +1,75 @@
+name: Release
+
+on:
+  push:
+    branches: [master]
+
+jobs:
+  release:
+    runs-on: windows-latest
+
+    steps:
+      - name: Check commit message for version tag
+        id: version
+        shell: bash
+        run: |
+          MSG="${{ github.event.head_commit.message }}"
+          if [[ "$MSG" =~ ^\[v([0-9]+\.[0-9]+\.[0-9]+(\.[0-9]+)?)\] ]]; then
+            echo "version=${BASH_REMATCH[1]}" >> $GITHUB_OUTPUT
+            echo "should_release=true" >> $GITHUB_OUTPUT
+          else
+            echo "should_release=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Checkout
+        if: steps.version.outputs.should_release == 'true'
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Patch AssemblyInfo.cs
+        if: steps.version.outputs.should_release == 'true'
+        shell: bash
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          FILE="Amicitia/Source/Amicitia/Properties/AssemblyInfo.cs"
+          sed -i "s/AssemblyVersion(\".*\")/AssemblyVersion(\"$VERSION\")/" "$FILE"
+          sed -i "s/AssemblyFileVersion(\".*\")/AssemblyFileVersion(\"$VERSION\")/" "$FILE"
+
+      - name: Setup NuGet
+        if: steps.version.outputs.should_release == 'true'
+        uses: nuget/setup-nuget@v2
+
+      - name: Restore NuGet packages
+        if: steps.version.outputs.should_release == 'true'
+        run: nuget restore Amicitia/Source/Amicitia.sln
+
+      - name: Setup MSBuild
+        if: steps.version.outputs.should_release == 'true'
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Build
+        if: steps.version.outputs.should_release == 'true'
+        run: |
+          msbuild Amicitia/Source/Amicitia.sln `
+            /p:Configuration=Release `
+            /p:Platform="Any CPU" `
+            /m
+
+      - name: Zip release
+        if: steps.version.outputs.should_release == 'true'
+        shell: pwsh
+        run: |
+          $version = "${{ steps.version.outputs.version }}"
+          $src = "Amicitia/Source/Amicitia/bin/Release"
+          $zip = "Amicitia-v$version.zip"
+          Compress-Archive -Path "$src/*" -DestinationPath $zip
+
+      - name: Create GitHub release
+        if: steps.version.outputs.should_release == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.version }}
+          name: Amicitia v${{ steps.version.outputs.version }}
+          body: ${{ github.event.head_commit.message }}
+          files: Amicitia-v${{ steps.version.outputs.version }}.zip
