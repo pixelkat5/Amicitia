@@ -61,7 +61,7 @@ jobs:
         shell: pwsh
         run: |
           $version = "${{ steps.version.outputs.version }}"
-          $src = "Source/Amicitia/bin/Release"
+          $src = "Build/Release"
           $zip = "Amicitia-v$version.zip"
           Compress-Archive -Path "$src/*" -DestinationPath $zip
 
