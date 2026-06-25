@@ -32,7 +32,7 @@ jobs:
         shell: bash
         run: |
           VERSION="${{ steps.version.outputs.version }}"
-          FILE="Amicitia/Source/Amicitia/Properties/AssemblyInfo.cs"
+          FILE="Source/Amicitia/Properties/AssemblyInfo.cs"
           sed -i "s/AssemblyVersion(\".*\")/AssemblyVersion(\"$VERSION\")/" "$FILE"
           sed -i "s/AssemblyFileVersion(\".*\")/AssemblyFileVersion(\"$VERSION\")/" "$FILE"
 
@@ -42,7 +42,7 @@ jobs:
 
       - name: Restore NuGet packages
         if: steps.version.outputs.should_release == 'true'
-        run: nuget restore Amicitia/Source/Amicitia.sln
+        run: nuget restore Source/Amicitia.sln
 
       - name: Setup MSBuild
         if: steps.version.outputs.should_release == 'true'
@@ -51,7 +51,7 @@ jobs:
       - name: Build
         if: steps.version.outputs.should_release == 'true'
         run: |
-          msbuild Amicitia/Source/Amicitia.sln `
+          msbuild Source/Amicitia.sln `
             /p:Configuration=Release `
             /p:Platform="Any CPU" `
             /m
@@ -61,7 +61,7 @@ jobs:
         shell: pwsh
         run: |
           $version = "${{ steps.version.outputs.version }}"
-          $src = "Amicitia/Source/Amicitia/bin/Release"
+          $src = "Source/Amicitia/bin/Release"
           $zip = "Amicitia-v$version.zip"
           Compress-Archive -Path "$src/*" -DestinationPath $zip
 
