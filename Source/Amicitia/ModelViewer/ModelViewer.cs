@@ -138,24 +138,41 @@ namespace Amicitia.ModelViewer
 
     public class Camera
     {
+        // Yaw = rotation around Y axis (left/right)
+        // Pitch = rotation around X axis (up/down)
+        private float mYaw   = -90f; // facing -Z by default
+        private float mPitch =   0f;
+
         public Camera()
         {
-            // default settings
-            Target = new Vector3( 0, 100, 0 );
             Position = new Vector3(0, 100, 250);
-            Forward = Vector3.Normalize( Target - Position );
-            Up = new Vector3(0, 1, 0);
+            Up       = new Vector3(0, 1, 0);
+            UpdateForward();
         }
 
         public Vector3 Position { get; set; }
+        public Vector3 Forward  { get; private set; }
+        public Vector3 Up       { get; private set; }
+        public Vector3 Right    => Vector3.Normalize(Vector3.Cross(Forward, Up));
 
-        public Quaternion Rotation { get; set; }
+        public void Rotate(float dx, float dy, float sensitivity = 0.2f)
+        {
+            mYaw   += dx * sensitivity;
+            mPitch -= dy * sensitivity;          // subtract: dragging down looks up
+            mPitch  = MathHelper.Clamp(mPitch, -89f, 89f);
+            UpdateForward();
+        }
 
-        public Vector3 Forward { get; set; }
-
-        public Vector3 Up { get; set; }
-
-        public Vector3 Target { get; set; }
+        private void UpdateForward()
+        {
+            float yawRad   = MathHelper.DegreesToRadians(mYaw);
+            float pitchRad = MathHelper.DegreesToRadians(mPitch);
+            Forward = Vector3.Normalize(new Vector3(
+                (float)(Math.Cos(pitchRad) * Math.Cos(yawRad)),
+                (float) Math.Sin(pitchRad),
+                (float)(Math.Cos(pitchRad) * Math.Sin(yawRad))
+            ));
+        }
 
         public void Bind(ShaderProgram shader, GLControl control)
         {
@@ -212,6 +229,13 @@ namespace Amicitia.ModelViewer
         private Camera mCamera;
         private Vector3 mTp;
 
+        // freecam mouse look
+        private bool  mRightMouseDown = false;
+        private Point mLastMousePos;
+        private float mMoveSpeed = 200f;
+
+        private System.Diagnostics.Stopwatch mFrameTimer = System.Diagnostics.Stopwatch.StartNew();
+
         // clear color
         private Color mBgColor;
 
@@ -264,12 +288,18 @@ namespace Amicitia.ModelViewer
             mViewerCtrl.Resize += ModelViewerResize;
             mViewerCtrl.Enter += (s, e) => { mIsViewFocused = true; };
             mViewerCtrl.Leave += (s, e) => { mIsViewFocused = false; };
-            mViewerCtrl.KeyPress += Input;
+            mViewerCtrl.KeyDown  += OnKeyDown;
+            mViewerCtrl.MouseDown += OnMouseDown;
+            mViewerCtrl.MouseUp   += OnMouseUp;
+            mViewerCtrl.MouseMove += OnMouseMove;
+            mViewerCtrl.MouseWheel += OnMouseWheel;
 
             mTp = new Vector3();
             mIsViewReady = true;
             GL.Viewport(0, 0, controller.Width, controller.Height);
             mCamera = new Camera();
+
+            Application.Idle += OnApplicationIdle;
         }
 
         private bool InitializeShaderProgram()
@@ -283,7 +313,7 @@ namespace Amicitia.ModelViewer
                 mShaderProg.AddUniform( "tran" );
                 mShaderProg.AddUniform( "diffuse" );
                 mShaderProg.AddUniform( "diffuseColor" );
-                mShaderProg.AddUniform( "isTextured" ); //used like a bool but is actually an int because of glsl design limitations ¬~¬
+                mShaderProg.AddUniform( "isTextured" );
                 mShaderProg.Bind();
             }
             catch ( Exception )
@@ -294,81 +324,122 @@ namespace Amicitia.ModelViewer
             return true;
         }
 
-        private void Input(object sender, System.Windows.Forms.KeyPressEventArgs args)
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern bool PeekMessage(out NativeMsg msg, IntPtr hWnd,
+            uint filterMin, uint filterMax, uint removeMsg);
+
+        [System.Runtime.InteropServices.StructLayout(
+            System.Runtime.InteropServices.LayoutKind.Sequential)]
+        private struct NativeMsg
         {
-            var state = OpenTK.Input.Keyboard.GetState();
-            if (!mIsViewFocused || !mCanRender )
+            public IntPtr hWnd, wParam, lParam;
+            public uint message, time;
+            public System.Drawing.Point pt;
+        }
+
+        private static bool IsMessageQueueEmpty()
+            => !PeekMessage(out _, IntPtr.Zero, 0, 0, 0);
+
+        private void OnApplicationIdle(object sender, EventArgs e)
+        {
+            while (mIsViewReady && mCanRender && mViewerCtrl.IsHandleCreated && IsMessageQueueEmpty())
+            {
+                float dt = (float)mFrameTimer.Elapsed.TotalSeconds;
+                mFrameTimer.Restart();
+                if (dt > 0.1f) dt = 0.1f; // clamp so a hitch can't teleport the camera
+
+                UpdateCamera(dt);
+
+                ModelViewerPaint(this, null);
+            }
+        }
+
+        private void UpdateCamera(float dt)
+        {
+            if (!mIsViewFocused) return;
+
+            var kb = OpenTK.Input.Keyboard.GetState();
+            Vector3 oldPos = mCamera.Position;
+
+            float speed = mMoveSpeed * dt;
+            if (kb[Key.ShiftLeft] || kb[Key.ShiftRight]) speed *= 3f;
+
+            if (kb[Key.W]) mCamera.Position += mCamera.Forward * speed;
+            if (kb[Key.S]) mCamera.Position -= mCamera.Forward * speed;
+            if (kb[Key.D]) mCamera.Position += mCamera.Right   * speed;
+            if (kb[Key.A]) mCamera.Position -= mCamera.Right   * speed;
+            if (kb[Key.E]) mCamera.Position += mCamera.Up      * speed;
+            if (kb[Key.Q]) mCamera.Position -= mCamera.Up      * speed;
+
+            if (IsNaN(mCamera.Position))
+                mCamera.Position = IsNaN(oldPos) ? Vector3.Zero : oldPos;
+        }
+
+        private void OnKeyDown(object sender, KeyEventArgs args) { /* movement polled in idle loop */ }
+
+        private void OnMouseDown(object sender, System.Windows.Forms.MouseEventArgs e)
+        {
+            if (e.Button == MouseButtons.Right)
+            {
+                mRightMouseDown = true;
+                mLastMousePos   = e.Location;
+                mViewerCtrl.Capture = true;   // keep receiving events outside the control
+            }
+        }
+
+        private void OnMouseUp(object sender, System.Windows.Forms.MouseEventArgs e)
+        {
+            if (e.Button == MouseButtons.Right)
+            {
+                mRightMouseDown = false;
+                mViewerCtrl.Capture = false;
+            }
+        }
+
+        private void OnMouseMove(object sender, System.Windows.Forms.MouseEventArgs e)
+        {
+            if (!mRightMouseDown || !mCanRender)
                 return;
-            Vector3 oldpos = mCamera.Position;
-            float moveSpeed = 10f;
-            if (state[Key.ShiftLeft])
-                moveSpeed *= 2;
 
-            bool inputWasHandled = false;
+            float dx = e.X - mLastMousePos.X;
+            float dy = e.Y - mLastMousePos.Y;
+            mLastMousePos = e.Location;
 
-            if (state[Key.W])
-            {
-                    mCamera.Position += mCamera.Forward * moveSpeed; // tp = new Vector3(tp.X, tp.Y, tp.Z + 10f);
-                inputWasHandled = true;
-            }
+            mCamera.Rotate(dx, dy);
+            mViewerCtrl.Invalidate();
+        }
 
-            if (state[Key.S])
-            {
-                mCamera.Position -= mCamera.Forward * moveSpeed; // tp = new Vector3(tp.X, tp.Y, tp.Z - 10f);
-                inputWasHandled = true;
-            }
+        private void OnMouseWheel(object sender, System.Windows.Forms.MouseEventArgs e)
+        {
+            if (!mCanRender)
+                return;
 
-            if (state[Key.D])
-            {
-                mCamera.Position -= Vector3.Cross(mCamera.Forward, new Vector3(0, 1.0f, 0)) * moveSpeed; // tp = new Vector3(tp.X, tp.Y + 10f, tp.Z);
-                inputWasHandled = true;
-            }
-
-            if (state[Key.A])
-            {
-                mCamera.Position += Vector3.Cross(mCamera.Forward, new Vector3(0, 1.0f, 0)) * moveSpeed; // tp = new Vector3(tp.X, tp.Y - 10f, tp.Z);
-                inputWasHandled = true;
-            }
-
-          	if (state[Key.Q])
-          	{
-              mCamera.Position += new Vector3(0, 1.0f, 0) * moveSpeed; // tp = new Vector3(tp.X, tp.Y - 10f, tp.Z);
-              inputWasHandled = true;
-          	}
-
-          	if (state[Key.E])
-          	{
-              mCamera.Position -= new Vector3(0, 1.0f, 0) * moveSpeed; // tp = new Vector3(tp.X, tp.Y - 10f, tp.Z);
-              inputWasHandled = true;
-          	}
-
-            if ( inputWasHandled && IsNaN( mCamera.Position))
-            {
-                if (!IsNaN(oldpos))
-                {
-                    mCamera.Position = oldpos; // prevents the camera from dying
-                }
-                else
-                {
-                    // shouldn't really happen
-                    mCamera.Position = new Vector3();
-                }
-            }
-
-            mCamera.Forward = Vector3.Normalize(mCamera.Target - mCamera.Position);
-
-            if (inputWasHandled)
-            {
-                mViewerCtrl.Invalidate();
-            }
-
-            Console.WriteLine( mCamera.Position );
+            // each notch = 120 units; scale speed up/down by 20 %
+            float factor = e.Delta > 0 ? 1.2f : 1f / 1.2f;
+            mMoveSpeed = Math.Max(1f, mMoveSpeed * factor);
         }
 
         public static bool IsNaN(Vector3 value)
         {
             return float.IsNaN(value.X) || float.IsNaN(value.Y) || float.IsNaN(value.Z);
         }
+
+        private static byte ScalePS2Alpha(byte a) => (byte)Math.Min((a / 128.0f) * 255, 255);
+
+        private bool ModelHasTransparency(GpuModel model)
+        {
+            for (int i = 0; i < model.Color.Length; i++)
+            {
+                if (ScalePS2Alpha(model.Color[i].A) < 255)
+                    return true;
+
+                if (model.Tid[i] != string.Empty && mTransparentTextures.Contains(model.Tid[i]))
+                    return true;
+            }
+            return false;
+        }
+
+        private HashSet<string> mTransparentTextures = new HashSet<string>();
 
         public void LoadTextures(RwTextureDictionaryNode textures)
         {
@@ -385,7 +456,21 @@ namespace Amicitia.ModelViewer
                 // get the pixel array
                 var pixels = new BasicCol4[texture.Width * texture.Height];
                 for ( int i = 0; i < texture.Width * texture.Height; i++ )
-                    pixels[i] = new BasicCol4( colorpixels[i] );
+                {
+                    var c = colorpixels[i];
+                    pixels[i] = new BasicCol4( Color.FromArgb(
+                        ScalePS2Alpha( c.A ),
+                        c.R, c.G, c.B ) );
+                }
+
+                // flag texture as transparent if any pixel is non-opaque
+                bool hasAlpha = false;
+                for (int i = 0; i < pixels.Length; i++)
+                {
+                    if (pixels[i].A < 255) { hasAlpha = true; break; }
+                }
+                if (hasAlpha)
+                    mTransparentTextures.Add(texture.Name);
 
                 // create the texture
                 int tex = GL.GenTexture();
@@ -394,7 +479,7 @@ namespace Amicitia.ModelViewer
                 // GL 4.5
                 //GL.CreateTextures( TextureTarget.Texture2D, 1, out int tex );
 
-                // set up the params
+                // set up params
                 GL.TexParameter( TextureTarget.Texture2D, TextureParameterName.TextureWrapS, RwtoGlConversionHelper.WrapDictionary[texture.HorrizontalAddressingMode] );
                 GL.TexParameter( TextureTarget.Texture2D, TextureParameterName.TextureWrapT, RwtoGlConversionHelper.WrapDictionary[texture.VerticalAddressingMode] );
                 GL.TexParameter( TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, RwtoGlConversionHelper.FilterDictionary[texture.FilterMode] );
@@ -589,11 +674,13 @@ namespace Amicitia.ModelViewer
 
             mModels.Clear();
             mTexLookup.Clear();
+            mTransparentTextures.Clear();
         }
 
         public void DisposeViewer()
         {
             Console.WriteLine("disposing");
+            Application.Idle -= OnApplicationIdle;
             DeleteScene();
             mShaderProg.Delete();
             mIsViewReady = false;
@@ -687,7 +774,7 @@ namespace Amicitia.ModelViewer
 
         private void ModelViewerPaint(object sender, PaintEventArgs e)
         {
-            if (!mIsViewReady || !mViewerCtrl.Visible || !mCanRender )
+            if (!mIsViewReady || !mViewerCtrl.Visible || !mCanRender || !mViewerCtrl.IsHandleCreated)
                 return;
 
             GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
@@ -697,9 +784,24 @@ namespace Amicitia.ModelViewer
             mTransform = Matrix4.CreateTranslation( mTp ) * Matrix4.CreateFromQuaternion( Quaternion.FromEulerAngles( 0, 0, 0 ) ) * Matrix4.CreateScale( new Vector3( 1.0f, 1.0f, 1.0f ) );
             mShaderProg.SetUniform( "tran", mTransform );
 
-            if ( mModels.Count > 0 )
-                for ( int i = 0; i < mModels.Count; i++ )
-                    FullBind( mModels[i] );
+            if (mModels.Count > 0)
+            {
+                GL.DepthMask(true);
+                for (int i = 0; i < mModels.Count; i++)
+                {
+                    if (!ModelHasTransparency(mModels[i]))
+                        FullBind(mModels[i]);
+                }
+
+                GL.DepthMask(false);
+                for (int i = 0; i < mModels.Count; i++)
+                {
+                    if (ModelHasTransparency(mModels[i]))
+                        FullBind(mModels[i]);
+                }
+
+                GL.DepthMask(true);
+            }
 
             mViewerCtrl.SwapBuffers();
         }

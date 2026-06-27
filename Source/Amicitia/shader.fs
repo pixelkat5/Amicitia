@@ -19,7 +19,7 @@ void main()
   vec4 color = vec4(1, 1, 1, 1);
   if(isTextured != 0)
   {
-    //if(texture2D(diffuse, id.tex).a < .3) discard;
+    if (texture2D(diffuse, id.tex).a < 0.1) discard;
     color = texture2D(diffuse, id.tex);
   }
 
